@@ -1,0 +1,9 @@
+[project]
+name = "mlxweek5"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+python = "3.10"
+dependencies = [
+    "ruff>=0.9.7",
+]
