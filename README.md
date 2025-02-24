@@ -22,5 +22,5 @@ uv run main.py
 # set python version
 uv python pin 3.10
 # install a package
-uv pip install pytorch
+uv add torch
 ```
