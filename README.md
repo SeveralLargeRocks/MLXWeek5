@@ -1,5 +1,25 @@
 # MLXWeek5
 
+## Setup Instructions
+
+```bash
+uv sync
+```
+
+That's it!
+
+Now you have two options to run code:
+```bash
+# runs the code in the venv without entering into the venv
+uv run main.py
+# enter the venv first
+source .venv/bin/activate
+# execute from within the venv
+python main.py
+# exit the venv
+deactivate
+```
+
 ## UV & Ruff Cheatsheet
 
 ```bash
@@ -13,14 +33,10 @@ uv run ruff format
 uv lock
 # sync the venv with the uv.lock
 uv sync
-# activate environment
-source .venv/bin/activate
-# deactivate the venv
-deactivate
-# run a python file via the venv without activating first
-uv run main.py
 # set python version
 uv python pin 3.10
 # install a package
 uv add torch
+# view installed packages
+uv pip list
 ```
