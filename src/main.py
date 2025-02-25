@@ -5,22 +5,21 @@ import whisper
 from src.utils import audio_path_to_mel, text_to_input_tks, get_loss, transcribe
 
 
-def main(model, device: str = "cpu", audio_path: str = "hello.wav") -> None:
+def main(
+    model,
+    tokenizer,
+    optimizer,
+    criterion,
+    device: str = "cpu",
+    audio_path: str = "hello.wav",
+) -> None:
     """Initialize and load Whisper model on specified device."""
-
-    model = whisper.load_model("tiny.en", device=device)
 
     # process the audio file
     mel = audio_path_to_mel(audio_path, device)
 
     # Tokenize ground truth text
-    ground_truth_text = "Hello, my name is Izaak."
-    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
-    input_tks = text_to_input_tks(ground_truth_text, tokenizer, device)
-
-    # Define the optimizer and criterion
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-    criterion = torch.nn.CrossEntropyLoss()
+    input_tks = text_to_input_tks("Hello, my name is Izaak.", tokenizer, device)
 
     # Train the model
     for step in range(5):
@@ -43,11 +42,15 @@ def main(model, device: str = "cpu", audio_path: str = "hello.wav") -> None:
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print(f"Using device: {device}")
     model = whisper.load_model("tiny.en", device=device)
+    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    criterion = torch.nn.CrossEntropyLoss()
+
+    print(f"Using device: {device}")
 
     model.eval()
     audio_path = "hello.wav"
     print("Transcription: ", transcribe(model, audio_path))
 
-    main(model, device, audio_path)
+    main(model, tokenizer, optimizer, criterion, device, audio_path)
