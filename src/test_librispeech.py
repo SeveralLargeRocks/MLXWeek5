@@ -32,21 +32,16 @@ for audio, text in tqdm.tqdm(valid_dataloader, desc="Testing"):
 
     # Decode predictions
     predicted_token_ids = torch.argmax(predictions, dim=-1)
+    # Include the first token by starting from index 1 (after start token)
     pred_text = tokenizer.decode(predicted_token_ids[0])
     
     # Clean and normalize
-    pred_text = pred_text.strip()
     all_predictions.append(normalizer(pred_text))
     all_references.append(normalizer(text))
 
-    if index == 10:
-        break
 
 avg_loss = total_loss / len(valid_dataloader)
 wer_score = wer(all_references, all_predictions)
-print('all_predictions: ', all_predictions)
-print('all_references: ', all_references)
-print('wer_score: ', wer_score)
 
 print(f"Total loss: {total_loss:.4f}")
 print(f"Average loss: {avg_loss:.4f}")
