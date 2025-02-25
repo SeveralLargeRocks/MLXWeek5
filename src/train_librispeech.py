@@ -47,8 +47,6 @@ def train_model(
             loss.backward()
             optimizer.step()
 
-            print(f"Step {batch_step + 1}/5, Loss: {loss.item():.4f}")
-
         avg_loss = total_loss / len(train_dataloader)
         print(f"Average loss: {avg_loss:.4f}")
 
