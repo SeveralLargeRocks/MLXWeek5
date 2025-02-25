@@ -42,12 +42,18 @@ def load_librispeech():
     return LibriSpeechDataset(train_dataset), LibriSpeechDataset(valid_dataset)
 
 
-if __name__ == "__main__":
-    batch_size = 2
+def get_dataloaders(batch_size: int = 2):
     train_dataset, valid_dataset = load_librispeech()
 
     train_dataloader = DataLoader(train_dataset, batch_size=batch_size)
     valid_dataloader = DataLoader(valid_dataset, batch_size=batch_size)
+
+    return train_dataloader, valid_dataloader
+
+
+if __name__ == "__main__":
+    batch_size = 2
+    train_dataloader, valid_dataloader = get_dataloaders(batch_size)
 
     print("im done bro")
     files, items = next(iter(train_dataloader))
