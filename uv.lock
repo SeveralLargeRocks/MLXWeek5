@@ -363,6 +363,7 @@ dependencies = [
     { name = "ruff" },
     { name = "soundfile" },
     { name = "torch" },
+    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -373,6 +374,7 @@ requires-dist = [
     { name = "ruff", specifier = ">=0.9.7" },
     { name = "soundfile", specifier = ">=0.13.1" },
     { name = "torch", specifier = ">=2.6.0" },
+    { name = "tqdm", specifier = ">=4.67.1" },
 ]
 
 [[package]]
