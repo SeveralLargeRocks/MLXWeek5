@@ -8,8 +8,8 @@ from src.utils import (
     text_to_input_tks,
     get_loss,
     get_training_kit,
-    get_dataloaders,
 )
+from src.dataloader import get_dataloaders
 
 
 def train_model(
@@ -32,7 +32,8 @@ def train_model(
             train_dataloader, desc=f"training epoch {epoch + 1}"
         ):
             batch_step += 1
-
+            audio = audio[0]
+            text = text[0]
             mel = audio_path_to_mel(audio, device)
             input_tks = text_to_input_tks(text, tokenizer, device)
 
