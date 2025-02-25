@@ -1,0 +1,36 @@
+import torch
+import whisper
+
+
+def audio_path_to_mel(audio_path: str, device: str = "cpu") -> torch.Tensor:
+    audio = whisper.load_audio(audio_path)
+    audio = whisper.pad_or_trim(audio)
+    mel = whisper.log_mel_spectrogram(audio).to(device).unsqueeze(0)
+    return mel
+
+
+def text_to_input_tks(
+    text: str, tokenizer: whisper.tokenizer.Tokenizer, device: str = "cpu"
+) -> torch.Tensor:
+    target_ids = tokenizer.encode(text)
+    sot_token = torch.tensor(
+        [tokenizer.sot], dtype=torch.long, device=device
+    ).unsqueeze(0)
+    target_tensor = torch.tensor(target_ids, dtype=torch.long, device=device).unsqueeze(
+        0
+    )
+    input_tks = torch.cat([sot_token, target_tensor], dim=-1)
+
+    return input_tks
+
+
+def get_loss(
+    predictions: torch.Tensor,
+    input_tks: torch.Tensor,
+    criterion: torch.nn.CrossEntropyLoss,
+) -> torch.Tensor:
+    remove_sot = input_tks[:, 1:]  # remove sot token
+    predictions = predictions[:, :-1, :]  # remove last prediction again for alignment
+
+    loss = criterion(predictions.transpose(1, 2), remove_sot)
+    return loss
