@@ -3,10 +3,19 @@
 ## Setup Instructions
 
 ```bash
+# Install UV if needed on macOS and Linux.
+curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
 That's it!
+
+You can also install nvtop if you want to monitor your system resource usage:
+```bash
+add-apt-repository -y ppa:flexiondotorg/nvtop;apt install nvtop
+# run nvtop
+nvtop
+```
 
 Now you have two options to run code:
 ```bash
