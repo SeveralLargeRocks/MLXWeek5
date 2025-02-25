@@ -2,6 +2,7 @@
 
 import torch
 import tqdm
+import wandb
 
 from src.utils import (
     audio_path_to_mel,
@@ -11,6 +12,8 @@ from src.utils import (
 )
 from src.dataloader import get_dataloaders
 
+# Initialize wandb
+wandb.init(project="whisper-finetuning", name="librispeech-training")
 
 def train_model(
     model,
@@ -29,7 +32,7 @@ def train_model(
         batch_step = 0
         total_loss = 0
         for audio, text in tqdm.tqdm(
-            train_dataloader, desc=f"training epoch {epoch + 1}"
+            train_dataloader, desc=f"Epoch {epoch + 1}"
         ):
             batch_step += 1
             audio = audio[0]
@@ -49,10 +52,24 @@ def train_model(
         avg_loss = total_loss / len(train_dataloader)
         print(f"Average loss: {avg_loss:.4f}")
 
+        # Log metrics
+        wandb.log({
+            "epoch": epoch,
+            "train_loss": avg_loss,
+        })
+
     # Save the model after training
-    torch.save(model.state_dict(), "trained_model.pth")
+    model_path = "trained_model.pth"
+    torch.save(model.state_dict(), model_path)
+    
+    # Log model to wandb
+    artifact = wandb.Artifact('whisper_model', type='model')
+    artifact.add_file(model_path)
+    wandb.log_artifact(artifact)
 
     print("you silly sausage you're done")
+
+    wandb.finish()
 
 
 if __name__ == "__main__":
