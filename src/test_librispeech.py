@@ -31,8 +31,11 @@ for audio, text in tqdm.tqdm(valid_dataloader, desc="Testing"):
     total_loss += loss.item()
 
     # Decode predictions
-    predicted_token_ids = torch.argmax(predictions, dim=-1)[0]
-    pred_text = tokenizer.decode(predicted_token_ids)
+    predicted_token_ids = torch.argmax(predictions, dim=-1)
+    pred_text = tokenizer.decode(predicted_token_ids[0])
+    
+    # Clean and normalize
+    pred_text = pred_text.strip()
     all_predictions.append(normalizer(pred_text))
     all_references.append(normalizer(text))
 
