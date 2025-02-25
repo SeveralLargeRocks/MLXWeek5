@@ -60,14 +60,14 @@ def train_model(
             }
         )
 
-    # Save the model after training
-    model_path = "trained_model.pth"
-    torch.save(model.state_dict(), model_path)
+        # Save the model after training
+        model_path = f"trained_model_{epoch}.pth"
+        torch.save(model.state_dict(), model_path)
 
-    # Log model to wandb
-    artifact = wandb.Artifact("whisper_model", type="model")
-    artifact.add_file(model_path)
-    wandb.log_artifact(artifact)
+        # Log model to wandb
+        artifact = wandb.Artifact("whisper_model", type="model")
+        artifact.add_file(model_path)
+        wandb.log_artifact(artifact)
 
     print("you silly sausage you're done")
 
