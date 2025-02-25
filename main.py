@@ -4,6 +4,13 @@ import torch
 import whisper
 
 
+def audio_path_to_mel(audio_path: str, device: str = "cpu") -> torch.Tensor:
+    audio = whisper.load_audio(audio_path)
+    audio = whisper.pad_or_trim(audio)
+    mel = whisper.log_mel_spectrogram(audio).to(device).unsqueeze(0)
+    return mel
+
+
 def main(device: str = "cpu") -> None:
     """Initialize and load Whisper model on specified device."""
 
@@ -15,9 +22,7 @@ def main(device: str = "cpu") -> None:
     print("Transcription: ", result["text"])
 
     # process the audio file
-    audio = whisper.load_audio(audio_path)
-    audio = whisper.pad_or_trim(audio)
-    mel = whisper.log_mel_spectrogram(audio).to(device).unsqueeze(0)
+    mel = audio_path_to_mel(audio_path, device)
 
     # Tokenize ground truth text
     ground_truth_text = "Hello, my name is Izaak."
