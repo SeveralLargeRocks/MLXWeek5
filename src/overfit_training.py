@@ -5,7 +5,7 @@ import whisper
 from src.utils import audio_path_to_mel, text_to_input_tks, get_loss, transcribe
 
 
-def main(
+def train_model(
     model,
     tokenizer,
     optimizer,
@@ -22,6 +22,7 @@ def main(
     input_tks = text_to_input_tks("Hello, my name is Izaak.", tokenizer, device)
 
     # Train the model
+    model.train()
     for step in range(5):
         # Forward pass
         predictions = model(tokens=input_tks, mel=mel)
@@ -53,4 +54,4 @@ if __name__ == "__main__":
     audio_path = "hello.wav"
     print("Transcription: ", transcribe(model, audio_path))
 
-    main(model, tokenizer, optimizer, criterion, device, audio_path)
+    train_model(model, tokenizer, optimizer, criterion, device, audio_path)
