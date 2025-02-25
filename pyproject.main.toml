@@ -1,0 +1,18 @@
+[project]
+name = "mlxweek5"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+python = "3.10"
+requires-python = "==3.10.*"
+dependencies = [
+    "datasets>=3.3.2",
+    "jiwer>=3.1.0",
+    "librosa>=0.10.2.post1",
+    "openai-whisper>=20240930",
+    "ruff>=0.9.7",
+    "soundfile>=0.13.1",
+    "torch>=2.6.0",
+    "tqdm>=4.67.1",
+    "wandb>=0.19.7",
+]
