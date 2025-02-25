@@ -27,22 +27,22 @@ class WhisperPreprocessor(torch.utils.data.IterableDataset):
             # Convert audio to float32 and preprocess
             audio_array = sample["audio"]["array"].astype(np.float32)
             audio_array = whisper.pad_or_trim(audio_array)
-            mel = whisper.log_mel_spectrogram(audio_array)
             
             # Tokenize text with SOT and EOT token
             tokenized_text = self.tokenizer.encode(sample["text"])
             tokenized_text = [self.tokenizer.sot] + tokenized_text
             tokenized_text = tokenized_text + [self.tokenizer.eot]
             
+            # Return raw audio instead of mel spectrogram
             yield {
-                "mel": mel,
+                "audio": audio_array,  # Raw audio waveform
                 "tokens": tokenized_text
             }
 
 def collate_fn(batch):
     """Collate function that returns tensor outputs"""
-    # Stack mel spectrograms into a single tensor
-    mels = torch.stack([torch.tensor(item["mel"]) for item in batch])
+    # Process audio waveforms
+    audios = torch.stack([torch.tensor(item["audio"]) for item in batch])
     
     # Process tokenized texts to handle variable lengths
     max_len = max(len(item["tokens"]) for item in batch)
@@ -57,8 +57,8 @@ def collate_fn(batch):
         tokens_tensor[i, :len(tokens)] = torch.tensor(tokens, dtype=torch.long)
     
     return {
-        "mel": mels,  # Shape: [batch_size, n_mels, time]
-        "tokens": tokens_tensor  # Shape: [batch_size, seq_len]
+        "audio": audios,        # Shape: [batch_size, samples]
+        "tokens": tokens_tensor # Shape: [batch_size, seq_len]
     }
 
 # Example usage
@@ -76,5 +76,5 @@ if __name__ == "__main__":
     print("Loading batch...")
     batch = next(iter(loader))
     
-    print(f"Mel spectrograms: {batch['mel'].shape}, {batch['mel'].dtype}")
+    print(f"Audio waveforms: {batch['audio'].shape}, {batch['audio'].dtype}")
     print(f"Tokenized text: {batch['tokens'].shape}, {batch['tokens'].dtype}")
