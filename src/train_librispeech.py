@@ -129,3 +129,11 @@ if __name__ == "__main__":
     print(f"Using device: {device}")
 
     train_model(model, tokenizer, optimizer, criterion, device)
+
+
+"""
+
+RESULTS:
+Average loss: 0.0030
+Word Error Rate: 28.89%
+"""
