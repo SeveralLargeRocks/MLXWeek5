@@ -100,6 +100,20 @@ def train_model(
     avg_loss = total_loss / len(valid_dataloader)
     wer_score = wer(all_references, all_predictions)
 
+    # Log evaluation metrics
+    wandb.log(
+        {
+            "total_loss": total_loss,
+            "eval_loss": avg_loss,
+            "word_error_rate": wer_score,
+            # Log a few example predictions
+            "examples": wandb.Table(
+                columns=["Reference", "Prediction"],
+                data=list(zip(all_references[:5], all_predictions[:5])),
+            ),
+        }
+    )
+
     print(f"Total loss: {total_loss:.4f}")
     print(f"Average loss: {avg_loss:.4f}")
     print(f"Word Error Rate: {wer_score:.2%}")
