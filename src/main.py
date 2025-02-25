@@ -2,18 +2,13 @@
 
 import torch
 import whisper
-from src.utils import audio_path_to_mel, text_to_input_tks, get_loss
+from src.utils import audio_path_to_mel, text_to_input_tks, get_loss, transcribe
 
 
-def main(device: str = "cpu") -> None:
+def main(model, device: str = "cpu", audio_path: str = "hello.wav") -> None:
     """Initialize and load Whisper model on specified device."""
 
     model = whisper.load_model("tiny.en", device=device)
-    model.eval()
-
-    audio_path = "hello.wav"
-    result = model.transcribe(audio_path)
-    print("Transcription: ", result["text"])
 
     # process the audio file
     mel = audio_path_to_mel(audio_path, device)
@@ -49,4 +44,10 @@ def main(device: str = "cpu") -> None:
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
-    main(device)
+    model = whisper.load_model("tiny.en", device=device)
+
+    model.eval()
+    audio_path = "hello.wav"
+    print("Transcription: ", transcribe(model, audio_path))
+
+    main(model, device, audio_path)

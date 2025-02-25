@@ -34,3 +34,8 @@ def get_loss(
 
     loss = criterion(predictions.transpose(1, 2), remove_sot)
     return loss
+
+
+def transcribe(model, audio_path: str) -> str:
+    result = model.transcribe(audio_path)
+    return result["text"]
