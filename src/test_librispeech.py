@@ -1,6 +1,7 @@
 import torch
 from src.dataloader import get_dataloaders
 from src.utils import audio_path_to_mel, text_to_input_tks, get_loss, get_training_kit
+import tqdm
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -12,7 +13,7 @@ model.eval()
 
 total_loss = 0
 
-for audio, text in valid_dataloader:
+for audio, text in tqdm.tqdm(valid_dataloader, desc="Testing"):
     audio = audio[0]
     text = text[0]
     mel = audio_path_to_mel(audio, device)
