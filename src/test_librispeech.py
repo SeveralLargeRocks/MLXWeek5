@@ -34,7 +34,7 @@ for audio, text in tqdm.tqdm(valid_dataloader, desc="Testing"):
     predicted_token_ids = torch.argmax(predictions, dim=-1)
     # Include the first token by starting from index 1 (after start token)
     pred_text = tokenizer.decode(predicted_token_ids[0])
-    
+
     # Clean and normalize
     all_predictions.append(normalizer(pred_text))
     all_references.append(normalizer(text))

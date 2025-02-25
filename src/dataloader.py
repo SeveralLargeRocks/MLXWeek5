@@ -14,19 +14,19 @@ class LibriSpeechDataset(Dataset):
     def __getitem__(self, idx):
         item = self.dataset[idx]
         file_path = item["file"]
-        
+
         # Check if the file exists
         if not os.path.exists(file_path):
             # Try to find the file in the LibriSpeech directory structure
             file_name = os.path.basename(file_path)
-            
+
             # Search in data directory for LibriSpeech files
             data_dir = "./data"
             for root, dirs, files in os.walk(data_dir):
                 if file_name in files:
                     file_path = os.path.join(root, file_name)
                     break
-        
+
         text = item["text"]
         return file_path, text
 
