@@ -39,3 +39,19 @@ def get_loss(
 def transcribe(model, audio_path: str) -> str:
     result = model.transcribe(audio_path)
     return result["text"]
+
+
+def get_training_kit() -> tuple[
+    str,
+    whisper.model.Whisper,
+    whisper.tokenizer.Tokenizer,
+    torch.optim.Optimizer,
+    torch.nn.CrossEntropyLoss,
+]:
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    model = whisper.load_model("tiny.en", device=device)
+    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    criterion = torch.nn.CrossEntropyLoss()
+
+    return device, model, tokenizer, optimizer, criterion

@@ -1,8 +1,14 @@
 """Speech recognition using OpenAI's Whisper model."""
 
 import torch
-import whisper
-from src.utils import audio_path_to_mel, text_to_input_tks, get_loss, transcribe
+
+from src.utils import (
+    audio_path_to_mel,
+    text_to_input_tks,
+    get_loss,
+    transcribe,
+    get_training_kit,
+)
 
 
 def train_model(
@@ -42,11 +48,7 @@ def train_model(
 
 
 if __name__ == "__main__":
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = whisper.load_model("tiny.en", device=device)
-    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
-    criterion = torch.nn.CrossEntropyLoss()
+    device, model, tokenizer, optimizer, criterion = get_training_kit()
 
     print(f"Using device: {device}")
 
