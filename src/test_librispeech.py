@@ -53,5 +53,5 @@ print("we done no cap fo real ma jigga")
 RESULTS:
 Total loss: 4875.0953
 Average loss: 1.8036
-Word Error Rate: 41.65%
+Word Error Rate: 34.67%
 """
