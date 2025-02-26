@@ -5,14 +5,19 @@ import tqdm
 from jiwer import wer
 from whisper.normalizers import BasicTextNormalizer
 
+use_fine_tuned = True
+
 normalizer = BasicTextNormalizer()
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 train_dataloader, valid_dataloader = get_dataloaders(batch_size=1)
 
-device, model, tokenizer, optimizer, criterion = get_training_kit()
+device, model, tokenizer, _, criterion = get_training_kit()
 
+# Load the trained weights
+if use_fine_tuned:
+    model.load_state_dict(torch.load('trained_model_3.pth', map_location=device))
 model.eval()
 
 total_loss = 0
@@ -26,7 +31,8 @@ for audio, text in tqdm.tqdm(valid_dataloader, desc="Testing"):
     text = text[0]
     mel = audio_path_to_mel(audio, device)
     input_tks = text_to_input_tks(text, tokenizer, device)
-    predictions = model(tokens=input_tks, mel=mel)
+    with torch.no_grad():  # Add this for inference
+        predictions = model(tokens=input_tks, mel=mel)
     loss = get_loss(predictions, input_tks, criterion)
     total_loss += loss.item()
 
