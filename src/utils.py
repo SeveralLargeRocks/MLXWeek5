@@ -1,5 +1,16 @@
 import torch
 import whisper
+from pyannote.audio import Pipeline
+
+def get_pyannote_diarization_model(hf_token: str) -> Pipeline:
+    return Pipeline.from_pretrained(
+        "pyannote/speaker-diarization-3.1", use_auth_token=hf_token
+    )
+
+
+def get_diarization(model, audio_path: str) -> list[tuple[float, float, str]]:
+    diarization = model(audio_path)
+    return diarization
 
 
 def audio_path_to_mel(audio_path: str, device: str = "cpu") -> torch.Tensor:
