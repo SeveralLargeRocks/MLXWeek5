@@ -1,6 +1,6 @@
 import re
 import os
-
+import pandas
 
 
 def parse_diarized_file(filename):
@@ -84,15 +84,18 @@ def associate_audio_with_text(audio_folder, text_dict):
     return audio_mapping
 
 if __name__ == "__main__":
-    diarized_file = "/root/MLXWeek5/modern_wisdom_combined.txt"  # Replace with your actual file path
+    diarized_file = "/Users/cameron/Documents/mlx-projects/MLXWeek5/modern_wisdom_combined.txt"  # Replace with your actual file path
     output_string = process_diarized_file(diarized_file)
     print(output_string)
     
     splitted=split_text_by_token(output_string)
         
-    audio_folder = "/root/MLXWeek5/split"
+    audio_folder = "/Users/cameron/Documents/mlx-projects/MLXWeek5/split"
 
     result = associate_audio_with_text(audio_folder, splitted)
+
+    df = pandas.DataFrame.from_dict(result, orient='index')
+    df.to_csv('output.csv', header=False)
     
     for key, value in result.items():
         print(f"ID {key}: {value}")
