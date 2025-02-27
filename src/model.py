@@ -112,19 +112,32 @@ if __name__ == "__main__":
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
     model = TwoTowerModel(hf_token=hf_token)
-    waveform = whisper.load_audio("extract.wav")
-
-    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
-
-    token_ids = text_to_input_tks('', tokenizer, device='cpu')
-    print(tokenizer.decode(token_ids))
-    while len(token_ids) < 10:
-        logits = model(waveform, token_ids)
-        next_token = torch.argmax(logits, dim=-1)
-        token_ids = torch.cat((token_ids, next_token))
-        gc.collect()
-        print('it')
-
-    text = [tokenizer.decode(token_id) for token_id in token_ids]
+    model.eval()  # Set to evaluation mode
     
-    print('text:', text)
+    waveform = whisper.load_audio("extract.wav")
+    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
+    
+    # Start with just the necessary tokens
+    prompt = [tokenizer.sot]  # Start of transcript token
+    if model.is_multilingual:
+        prompt.append(tokenizer.language_token("en"))
+    prompt.append(tokenizer.no_timestamps)  # Add no timestamps token
+    
+    tokens = torch.tensor([prompt]).to(next(model.parameters()).device)
+    
+    with torch.no_grad():
+        # Generate tokens until we hit max length or end token
+        max_len = 448  # Whisper's max length
+        while tokens.shape[-1] < max_len:
+            logits = model(waveform, tokens)
+            next_token = torch.argmax(logits[0, -1])
+            
+            if next_token == tokenizer.eot:  # Break if we hit end of transcript
+                break
+                
+            tokens = torch.cat([tokens, next_token.unsqueeze(0).unsqueeze(0)], dim=-1)
+            print("Generated token:", tokenizer.decode([next_token.item()]))
+    
+    # Decode the full sequence
+    text = tokenizer.decode(tokens[0].tolist())
+    print("\nFinal transcript:", text)
