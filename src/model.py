@@ -94,17 +94,12 @@ class TwoTowerModel(nn.Module):
         # TODO: who_matrix should be batched
         who_matrix = who_matrix.unsqueeze(0)
 
-        print('who matrix shape:', who_matrix.shape)
-        print('encoder shape:', encoder_output.shape)
         who_what_matrix = torch.cat((encoder_output, who_matrix), -1)
-        print('who_what_matrix shape:', who_what_matrix.shape)
 
         # Project back to encoder dimension
         combined_audio = self.combine(who_what_matrix)
-        print('combined shape:', combined_audio.shape)
 
         tokens = text_to_input_tks(diarized_transcription, self.tokenizer, device)
-        print('tokens:', tokens)
         logits = self.decoder(tokens, combined_audio)  # Shape: [batch, seq_len, vocab_size]
 
         return logits
