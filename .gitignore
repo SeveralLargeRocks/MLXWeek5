@@ -4,3 +4,5 @@ wandb
 *.pth
 .env
 modern_wisdom_alain_de_botton.wav
+*.wav
+!extract.wav

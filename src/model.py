@@ -1,69 +1,109 @@
 import torch
 import torch.nn as nn
 import whisper
-from pyannote.audio import Model
-from src.utils import audio_path_to_mel
+from pyannote.audio import Model, Pipeline
+from src.utils import audio_path_to_mel, text_to_input_tks
 from dotenv import load_dotenv
 import os
+import gc
 
 class TwoTowerModel(nn.Module):
     def __init__(self, hf_token: str):
         super(TwoTowerModel, self).__init__()
-        whisper_model = whisper.load_model("large")
+        whisper_model = whisper.load_model("small.en")
+
+        self.is_multilingual = whisper_model.is_multilingual
         self.encoder = whisper_model.encoder  # Use only the encoder
 
         # Freeze encoder parameters
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        # Use pyannote's speaker embedding model instead of full pipeline
-        self.speaker_model = Model.from_pretrained(
-            "pyannote/embedding", use_auth_token=hf_token
+        # Use pipeline for now (TODO: can we do this faster using the separate models?)
+        self.speaker_pipeline = Pipeline.from_pretrained(
+            "pyannote/speaker-diarization-3.1", 
+            use_auth_token=hf_token
         )
+
+        # TODO: ensure pipeline is frozen already
         # Freeze speaker model
-        for param in self.speaker_model.parameters():
-            param.requires_grad = False
+        # for param in self.speaker_model.parameters():
+        #     param.requires_grad = False
 
         # Get dimensions
         encoder_dim = whisper_model.dims.n_audio_state
-        speaker_dim = 512  # pyannote embedding dimension
+        self.speaker_dim = 256  # pyannote embedding dimension
 
         # Projection layer to combine both embeddings
         self.combine = nn.Sequential(
-            nn.Linear(encoder_dim + speaker_dim, encoder_dim), nn.ReLU()
+            nn.Linear(encoder_dim + self.speaker_dim, encoder_dim), nn.ReLU()
         )
 
-        self.decoder = nn.Linear(encoder_dim, whisper_model.dims.n_vocab)
+        self.tokenizer = whisper.tokenizer.get_tokenizer(self.is_multilingual)
 
-    def forward(self, mel):
-        # Ensure mel spectrogram has the right shape for Whisper
-        if mel.dim() == 2:
-            mel = mel.unsqueeze(0)  # Add batch dimension if not present
-        
-        # Whisper expects [batch_size, n_mels, n_frames]
-        if mel.size(1) != self.encoder.conv1.in_channels:
-            raise ValueError(f"Expected {self.encoder.conv1.in_channels} mel channels but got {mel.size(1)}")
+        self.decoder = whisper_model.decoder
+
+    def forward(self, waveform, token_ids):
+        waveform_padded = whisper.pad_or_trim(waveform)
+
+        device = next(model.parameters()).device
+        mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
             
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
-        return None
 
-        # Get speaker embeddings
-        speaker_embedding = self.speaker_model(mel)  # Shape: [batch, speaker_dim]
+        audio_token_length = 20 # 20ms
 
-        # Expand speaker embedding to match sequence length
-        speaker_embedding = speaker_embedding.unsqueeze(1).expand(
-            -1, encoder_output.size(1), -1
-        )
+        waveform_tensor = torch.tensor(waveform).unsqueeze(0)
 
-        # Concatenate features
-        combined = torch.cat([encoder_output, speaker_embedding], dim=-1)
+        # Get diarization & speaker embeddings
+        diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
+
+        # matrix to be concatted with the whisper encoder output
+        who_matrix = torch.tensor([], device=device)
+        
+        # TODO: do some string manipulation stuff to avoid need for lookup
+        index_lookup = {
+            'SPEAKER_00': 0,
+            'SPEAKER_01': 1
+        }
+
+        prev_segment_end = 0
+        for segment, _, speaker in diarization.itertracks(yield_label=True):
+            time_since_last_segment_end = segment.start - prev_segment_end
+
+            # fill the rows between each detected speech segment (silence) with zeros
+            empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
+            actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim)
+
+            who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
+
+            # then fill the rows for the speech segment with the embedding for that speaker (repeated)
+            index = index_lookup[speaker]
+            segment_speaker_embedding = torch.tensor(embeddings[index])
+
+            segment_duration_ms = (segment.end - segment.start) * 1000
+            num_tracks_in_segment = segment_duration_ms / audio_token_length
+            repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
+
+            who_matrix = torch.cat((who_matrix, repeated), 0)
+
+            prev_segment_end = segment.end
+
+        # fill the remaining rows with zeros (corresponds to whisper's own padding to 30 seconds)
+        remaing_empty_rows_to_append = 1500 - who_matrix.shape[0]
+        final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim)
+        who_matrix = torch.cat((who_matrix, final_empty_rows), 0)
+
+        # TODO: who_matrix should be batched
+        who_matrix = who_matrix.unsqueeze(0)
+
+        who_what_matrix = torch.cat((encoder_output, who_matrix), -1)
 
         # Project back to encoder dimension
-        combined = self.combine(combined)
+        combined_audio = self.combine(who_what_matrix)
 
-        # Pass through decoder
-        logits = self.decoder(combined)  # Shape: [batch, seq_len, vocab_size]
+        logits = self.decoder(token_ids, combined_audio)  # Shape: [batch, seq_len, vocab_size]
 
         return logits
 
@@ -72,7 +112,32 @@ if __name__ == "__main__":
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
     model = TwoTowerModel(hf_token=hf_token)
-    mel = audio_path_to_mel("hello.wav")
-    output = model(mel)
-    print('done')
-    # print(output.shape)
+    model.eval()  # Set to evaluation mode
+    
+    waveform = whisper.load_audio("extract.wav")
+    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
+    
+    # Start with just the necessary tokens
+    prompt = [tokenizer.sot]  # Start of transcript token
+    if model.is_multilingual:
+        prompt.append(tokenizer.language_token("en"))
+    prompt.append(tokenizer.no_timestamps)  # Add no timestamps token
+    
+    tokens = torch.tensor([prompt]).to(next(model.parameters()).device)
+    
+    with torch.no_grad():
+        # Generate tokens until we hit max length or end token
+        max_len = 448  # Whisper's max length
+        while tokens.shape[-1] < max_len:
+            logits = model(waveform, tokens)
+            next_token = torch.argmax(logits[0, -1])
+            
+            if next_token == tokenizer.eot:  # Break if we hit end of transcript
+                break
+                
+            tokens = torch.cat([tokens, next_token.unsqueeze(0).unsqueeze(0)], dim=-1)
+            print("Generated token:", tokenizer.decode([next_token.item()]))
+    
+    # Decode the full sequence
+    text = tokenizer.decode(tokens[0].tolist())
+    print("\nFinal transcript:", text)
