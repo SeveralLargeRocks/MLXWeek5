@@ -10,6 +10,8 @@ class TwoTowerModel(nn.Module):
     def __init__(self, hf_token: str):
         super(TwoTowerModel, self).__init__()
         whisper_model = whisper.load_model("small.en")
+
+        self.is_multilingual = whisper_model.is_multilingual
         self.encoder = whisper_model.encoder  # Use only the encoder
 
         # Freeze encoder parameters
@@ -36,11 +38,11 @@ class TwoTowerModel(nn.Module):
             nn.Linear(encoder_dim + self.speaker_dim, encoder_dim), nn.ReLU()
         )
 
-        self.tokenizer = whisper.tokenizer.get_tokenizer(whisper_model.is_multilingual)
+        self.tokenizer = whisper.tokenizer.get_tokenizer(self.is_multilingual)
 
         self.decoder = whisper_model.decoder
 
-    def forward(self, waveform, diarized_transcription: str = ''):
+    def forward(self, waveform, token_ids):
         waveform_padded = whisper.pad_or_trim(waveform)
 
         device = next(model.parameters()).device
@@ -78,6 +80,7 @@ class TwoTowerModel(nn.Module):
             # then fill the rows for the speech segment with the embedding for that speaker (repeated)
             index = index_lookup[speaker]
             segment_speaker_embedding = torch.tensor(embeddings[index])
+
             segment_duration_ms = (segment.end - segment.start) * 1000
             num_tracks_in_segment = segment_duration_ms / audio_token_length
             repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
@@ -99,8 +102,7 @@ class TwoTowerModel(nn.Module):
         # Project back to encoder dimension
         combined_audio = self.combine(who_what_matrix)
 
-        tokens = text_to_input_tks(diarized_transcription, self.tokenizer, device)
-        logits = self.decoder(tokens, combined_audio)  # Shape: [batch, seq_len, vocab_size]
+        logits = self.decoder(token_ids, combined_audio)  # Shape: [batch, seq_len, vocab_size]
 
         return logits
 
@@ -110,6 +112,15 @@ if __name__ == "__main__":
     hf_token = os.getenv("HF_TOKEN")
     model = TwoTowerModel(hf_token=hf_token)
     waveform = whisper.load_audio("extract.wav")
-    logits = model(waveform)
-    print('logits:', logits)
-    # print(output.shape)
+
+    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
+
+    token_ids = text_to_input_tks('', tokenizer, device='cpu')
+    while len(token_ids) < 10:
+        logits = model(waveform, token_ids)
+        next_token = torch.argmax(logits, dim=-1)
+        token_ids = torch.cat((token_ids, next_token))
+
+    text = [tokenizer.decode(token_id) for token_id in token_ids]
+    
+    print('text:', text)
