@@ -3,4 +3,4 @@ __pycache__
 wandb
 *.pth
 .env
-*.wav
+modern_wisdom_alain_de_botton.wav
