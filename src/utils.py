@@ -14,9 +14,9 @@ def get_diarization(model, audio_path: str) -> list[tuple[float, float, str]]:
 
 
 def audio_path_to_mel(audio_path: str, device: str = "cpu") -> torch.Tensor:
-    audio = whisper.load_audio(audio_path)
-    audio = whisper.pad_or_trim(audio)
-    mel = whisper.log_mel_spectrogram(audio).to(device).unsqueeze(0)
+    waveform = whisper.load_audio(audio_path)
+    waveform_padded = whisper.pad_or_trim(waveform)
+    mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
     return mel
 
 
