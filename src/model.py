@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import whisper
 from pyannote.audio import Model, Pipeline
-from src.utils import audio_path_to_mel
+from src.utils import audio_path_to_mel, text_to_input_tks
 from dotenv import load_dotenv
 import os
 
@@ -36,9 +36,11 @@ class TwoTowerModel(nn.Module):
             nn.Linear(encoder_dim + self.speaker_dim, encoder_dim), nn.ReLU()
         )
 
-        self.decoder = nn.Linear(encoder_dim, whisper_model.dims.n_vocab)
+        self.tokenizer = whisper.tokenizer.get_tokenizer(whisper_model.is_multilingual)
 
-    def forward(self, waveform):
+        self.decoder = whisper_model.decoder
+
+    def forward(self, waveform, diarized_transcription: str = ''):
         waveform_padded = whisper.pad_or_trim(waveform)
 
         device = next(model.parameters()).device
@@ -46,7 +48,6 @@ class TwoTowerModel(nn.Module):
             
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
-        print(encoder_output.shape)
 
         audio_token_length = 20 # 20ms
 
@@ -90,21 +91,21 @@ class TwoTowerModel(nn.Module):
         final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim)
         who_matrix = torch.cat((who_matrix, final_empty_rows), 0)
 
-        return None
+        # TODO: who_matrix should be batched
+        who_matrix = who_matrix.unsqueeze(0)
 
-        # Expand speaker embedding to match sequence length
-        speaker_embedding = speaker_embedding.unsqueeze(1).expand(
-            -1, encoder_output.size(1), -1
-        )
-
-        # Concatenate features
-        combined = torch.cat([encoder_output, speaker_embedding], dim=-1)
+        print('who matrix shape:', who_matrix.shape)
+        print('encoder shape:', encoder_output.shape)
+        who_what_matrix = torch.cat((encoder_output, who_matrix), -1)
+        print('who_what_matrix shape:', who_what_matrix.shape)
 
         # Project back to encoder dimension
-        combined = self.combine(combined)
+        combined_audio = self.combine(who_what_matrix)
+        print('combined shape:', combined_audio.shape)
 
-        # Pass through decoder
-        logits = self.decoder(combined)  # Shape: [batch, seq_len, vocab_size]
+        tokens = text_to_input_tks(diarized_transcription, self.tokenizer, device)
+        print('tokens:', tokens)
+        logits = self.decoder(tokens, combined_audio)  # Shape: [batch, seq_len, vocab_size]
 
         return logits
 
@@ -114,6 +115,6 @@ if __name__ == "__main__":
     hf_token = os.getenv("HF_TOKEN")
     model = TwoTowerModel(hf_token=hf_token)
     waveform = whisper.load_audio("extract.wav")
-    output = model(waveform)
-    print('done')
+    logits = model(waveform)
+    print('logits:', logits)
     # print(output.shape)
