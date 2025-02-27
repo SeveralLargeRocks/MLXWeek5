@@ -31,11 +31,11 @@ class TwoTowerModel(nn.Module):
 
         # Get dimensions
         encoder_dim = whisper_model.dims.n_audio_state
-        speaker_dim = 512  # pyannote embedding dimension
+        self.speaker_dim = 256  # pyannote embedding dimension
 
         # Projection layer to combine both embeddings
         self.combine = nn.Sequential(
-            nn.Linear(encoder_dim + speaker_dim, encoder_dim), nn.ReLU()
+            nn.Linear(encoder_dim + self.speaker_dim, encoder_dim), nn.ReLU()
         )
 
         self.decoder = nn.Linear(encoder_dim, whisper_model.dims.n_vocab)
@@ -65,18 +65,45 @@ class TwoTowerModel(nn.Module):
         diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
         print(diarization, embeddings)
 
-        for batch in encoder_output:
-            for audio_token in batch:
-                matching_segment = # find matching semgnet
-                audio_token = torch.concat(audio_token, matching_segment) 
+        # for batch in encoder_output:
+        #     for audio_token in batch:
+        #         matching_segment = # find matching semgnet
+        #         audio_token = torch.concat(audio_token, matching_segment) 
+
+        addition_matrix = torch.tensor([], device=device)
         
-        for index, (segment, _, speaker) in enumerate(diarization.itertracks(yield_label=True)):
-            segment_speaker_embedding = embeddings[index]
+        index_lookup = {
+            'SPEAKER_00': 0,
+            'SPEAKER_01': 1
+        }
+
+        prev_finish_time = 0
+        for segment, _, speaker in diarization.itertracks(yield_label=True):
+            print('i')
+            time_since_last_segment_end = segment.start - prev_finish_time
+
+            empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
+            actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim)
+            print('empty rows shape:', actual_empty_rows.shape)
+
+            index = index_lookup[speaker]
+            segment_speaker_embedding = torch.tensor(embeddings[index])
             segment_duration_ms = (segment.end - segment.start) * 1000
             num_tracks_in_segment = segment_duration_ms / audio_token_length
-            x = torch.range(0, num_tracks_in_segment)
+            # print(num_tracks_in_segment)
+            # print(segment_speaker_embedding.shape)
+            repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
+            print('repeated shape:', repeated.shape)
 
+            addition_matrix = torch.cat((addition_matrix, actual_empty_rows), 0)
+            addition_matrix = torch.cat((addition_matrix, repeated), 0)
+            prev_finish_time = segment.end
             print(f"{segment.start} - {segment.end}: {speaker}")
+
+        remaing_empty_rows_to_append = 1500 - addition_matrix.shape[0]
+        final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim)
+        addition_matrix = torch.cat((addition_matrix, final_empty_rows), 0)
+        print('addition matrix shape:', addition_matrix.shape)
 
         return None
 
@@ -101,7 +128,7 @@ if __name__ == "__main__":
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
     model = TwoTowerModel(hf_token=hf_token)
-    waveform = whisper.load_audio("extract2.wav")
+    waveform = whisper.load_audio("extract.wav")
     output = model(waveform)
     print('done')
     # print(output.shape)
