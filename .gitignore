@@ -4,3 +4,4 @@ wandb
 *.pth
 .env
 *.wav
+!extract.wav
