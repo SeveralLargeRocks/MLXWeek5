@@ -47,10 +47,9 @@ def get_loss(
     return loss
 
 
-def transcribe(model, audio_path: str) -> str:
-    result = model.transcribe(audio_path)
-    return result["text"]
-
+def transcribe(model, audio_path: str, word_timestamps: bool = False) -> dict:
+    result = model.transcribe(audio_path, word_timestamps=word_timestamps)
+    return result
 
 def get_training_kit() -> tuple[
     str,
