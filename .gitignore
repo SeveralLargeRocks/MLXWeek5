@@ -2,3 +2,6 @@ data/*
 __pycache__
 wandb
 *.pth
+.env
+*.wav
+*.txt
