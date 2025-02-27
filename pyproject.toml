@@ -13,6 +13,10 @@ dependencies = [
     "ruff>=0.9.7",
     "soundfile>=0.13.1",
     "torch>=2.6.0",
+<<<<<<< HEAD
     "tqdm>=4.67.1",
     "wandb>=0.19.7",
+=======
+    "transformers>=4.49.0",
+>>>>>>> origin/andreas
 ]
