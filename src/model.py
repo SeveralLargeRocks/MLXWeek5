@@ -16,15 +16,13 @@ class TwoTowerModel(nn.Module):
         for param in self.encoder.parameters():
             param.requires_grad = False
 
-        # Use pyannote's speaker embedding model instead of full pipeline
-        # self.speaker_model = Model.from_pretrained(
-        #     "pyannote/embedding", use_auth_token=hf_token
-        # )
+        # Use pipeline for now (TODO: can we do this faster using the separate models?)
         self.speaker_pipeline = Pipeline.from_pretrained(
             "pyannote/speaker-diarization-3.1", 
             use_auth_token=hf_token
         )
 
+        # TODO: ensure pipeline is frozen already
         # Freeze speaker model
         # for param in self.speaker_model.parameters():
         #     param.requires_grad = False
@@ -45,13 +43,6 @@ class TwoTowerModel(nn.Module):
 
         device = next(model.parameters()).device
         mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
-        # # Ensure mel spectrogram has the right shape for Whisper
-        # if mel.dim() == 2:
-        #     mel = mel.unsqueeze(0)  # Add batch dimension if not present
-        
-        # # Whisper expects [batch_size, n_mels, n_frames]
-        # if mel.size(1) != self.encoder.conv1.in_channels:
-        #     raise ValueError(f"Expected {self.encoder.conv1.in_channels} mel channels but got {mel.size(1)}")
             
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
@@ -60,50 +51,44 @@ class TwoTowerModel(nn.Module):
         audio_token_length = 20 # 20ms
 
         waveform_tensor = torch.tensor(waveform).unsqueeze(0)
-        # Get speaker embeddings
-        # speaker_embedding = self.speaker_model(waveform_tensor)  # Shape: [batch, speaker_dim]
+
+        # Get diarization & speaker embeddings
         diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
-        print(diarization, embeddings)
 
-        # for batch in encoder_output:
-        #     for audio_token in batch:
-        #         matching_segment = # find matching semgnet
-        #         audio_token = torch.concat(audio_token, matching_segment) 
-
-        addition_matrix = torch.tensor([], device=device)
+        # matrix to be concatted with the whisper encoder output
+        who_matrix = torch.tensor([], device=device)
         
+        # TODO: do some string manipulation stuff to avoid need for lookup
         index_lookup = {
             'SPEAKER_00': 0,
             'SPEAKER_01': 1
         }
 
-        prev_finish_time = 0
+        prev_segment_end = 0
         for segment, _, speaker in diarization.itertracks(yield_label=True):
-            print('i')
-            time_since_last_segment_end = segment.start - prev_finish_time
+            time_since_last_segment_end = segment.start - prev_segment_end
 
+            # fill the rows between each detected speech segment (silence) with zeros
             empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
             actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim)
-            print('empty rows shape:', actual_empty_rows.shape)
 
+            who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
+
+            # then fill the rows for the speech segment with the embedding for that speaker (repeated)
             index = index_lookup[speaker]
             segment_speaker_embedding = torch.tensor(embeddings[index])
             segment_duration_ms = (segment.end - segment.start) * 1000
             num_tracks_in_segment = segment_duration_ms / audio_token_length
-            # print(num_tracks_in_segment)
-            # print(segment_speaker_embedding.shape)
             repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
-            print('repeated shape:', repeated.shape)
 
-            addition_matrix = torch.cat((addition_matrix, actual_empty_rows), 0)
-            addition_matrix = torch.cat((addition_matrix, repeated), 0)
-            prev_finish_time = segment.end
-            print(f"{segment.start} - {segment.end}: {speaker}")
+            who_matrix = torch.cat((who_matrix, repeated), 0)
 
-        remaing_empty_rows_to_append = 1500 - addition_matrix.shape[0]
+            prev_segment_end = segment.end
+
+        # fill the remaining rows with zeros (corresponds to whisper's own padding to 30 seconds)
+        remaing_empty_rows_to_append = 1500 - who_matrix.shape[0]
         final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim)
-        addition_matrix = torch.cat((addition_matrix, final_empty_rows), 0)
-        print('addition matrix shape:', addition_matrix.shape)
+        who_matrix = torch.cat((who_matrix, final_empty_rows), 0)
 
         return None
 
