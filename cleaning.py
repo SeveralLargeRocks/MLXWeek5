@@ -29,13 +29,14 @@ def generate_output_string(diarized_segments):
     previous_speaker = None
     next_split_time = 30.0  # The next absolute timestamp where <split> should be inserted
 
+    # TODO: deal with the fact we are not using tokenizer.sot_lm
     tokenizer = whisper.tokenizer.get_tokenizer(True)
     
     for start_time, end_time, speaker, text in diarized_segments:
         # Insert <|startoflm|> if the speaker changes
         if speaker != previous_speaker:
             if previous_speaker is not None:  # Skip <|startoflm|> for the first speaker
-                output_text += tokenizer.sot_lm
+                output_text += "<|startoflm|>"
         
         words = text.split()
         segment_duration = end_time - start_time
