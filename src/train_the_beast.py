@@ -63,14 +63,14 @@ def train_model(
             # if i > 3:
             #     break
 
-            avg_loss = total_loss / i
+            avg_loss = total_loss / (i + 1)
 
             wandb.log({
                 "avg_train_loss": avg_loss,
             })
 
         wandb.log({
-            "epoch_loss": total_loss / i,
+            "epoch_loss": total_loss / (i + 1),
             "epoch": epoch + 1
         })
 
@@ -91,11 +91,19 @@ def train_model(
 
 
 if __name__ == "__main__":
-    device, _, tokenizer, optimizer, criterion = get_training_kit()
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    torch.set_default_tensor_type(f"torch.{device}.FloatTensor")
 
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
     model = TwoTowerModel(hf_token)
+
+    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
+
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+
+    criterion = torch.nn.CrossEntropyLoss()
 
     print(f"Using device: {device}")
 

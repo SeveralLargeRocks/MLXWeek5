@@ -53,7 +53,7 @@ class TwoTowerModel(nn.Module):
 
         audio_token_length = 20 # 20ms
 
-        waveform_tensor = torch.tensor(waveform).unsqueeze(0)
+        waveform_tensor = torch.tensor(waveform, device=device).unsqueeze(0)
 
         # Get diarization & speaker embeddings
         diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
@@ -83,7 +83,7 @@ class TwoTowerModel(nn.Module):
             if time_since_last_segment_end > 0:
                 # fill the rows between each detected speech segment (silence) with zeros
                 empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
-                actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim)
+                actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim).to(device)
 
                 who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
 
