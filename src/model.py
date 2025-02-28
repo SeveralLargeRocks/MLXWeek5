@@ -88,20 +88,19 @@ class TwoTowerModel(nn.Module):
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
 
-        return encoder_output, waveform, mel
-
-    def forward(self, full_encoder_output, token_ids):
-        encoder_output, waveform, mel = full_encoder_output
-
-        device = self.device
-
-        audio_token_length = 20 # 20ms
-
         waveform_tensor = torch.tensor(waveform, device=device).unsqueeze(0)
 
         # Get diarization & speaker embeddings
         diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
 
+        return encoder_output, diarization, embeddings
+
+    def forward(self, full_encoder_output, token_ids):
+        encoder_output, diarization, embeddings = full_encoder_output
+
+        device = self.device
+
+        audio_token_length = 20 # 20ms
         # matrix to be concatted with the whisper encoder output
         who_matrix = torch.tensor([], device=device)
         
