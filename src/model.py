@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 import gc
 
+
 class TwoTowerModel(nn.Module):
     def __init__(self, hf_token: str):
         super(TwoTowerModel, self).__init__()
@@ -64,7 +65,10 @@ class TwoTowerModel(nn.Module):
         # TODO: do some string manipulation stuff to avoid need for lookup
         index_lookup = {
             'SPEAKER_00': 0,
-            'SPEAKER_01': 1
+            'SPEAKER_01': 1,
+            'SPEAKER_02': 2,
+            'SPEAKER_03': 3,
+            'SPEAKER_04': 4
         }
 
         prev_segment_end = 0
@@ -89,7 +93,7 @@ class TwoTowerModel(nn.Module):
 
             # then fill the rows for the speech segment with the embedding for that speaker (repeated)
             index = index_lookup[speaker]
-            segment_speaker_embedding = torch.tensor(embeddings[index])
+            segment_speaker_embedding = torch.tensor(embeddings[index], device=device)
 
             segment_duration_ms = (segment.end - start_time) * 1000
             num_tracks_in_segment = segment_duration_ms / audio_token_length
@@ -101,7 +105,7 @@ class TwoTowerModel(nn.Module):
 
         # fill the remaining rows with zeros (corresponds to whisper's own padding to 30 seconds)
         remaing_empty_rows_to_append = 1500 - who_matrix.shape[0]
-        final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim)
+        final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim).to(device)
         who_matrix = torch.cat((who_matrix, final_empty_rows), 0)
 
         # TODO: who_matrix should be batched
@@ -118,9 +122,11 @@ class TwoTowerModel(nn.Module):
 
 
 if __name__ == "__main__":
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
-    model = TwoTowerModel(hf_token=hf_token)
+    model = TwoTowerModel(hf_token=hf_token).to(device)
     model.eval()  # Set to evaluation mode
     
     waveform = whisper.load_audio("extract.wav")
@@ -132,7 +138,7 @@ if __name__ == "__main__":
         prompt.append(tokenizer.language_token("en"))
     prompt.append(tokenizer.no_timestamps)  # Add no timestamps token
     
-    tokens = torch.tensor([prompt]).to(next(model.parameters()).device)
+    tokens = torch.tensor([prompt]).to(device)
     
     with torch.no_grad():
         # Generate tokens until we hit max length or end token
@@ -140,7 +146,7 @@ if __name__ == "__main__":
         while tokens.shape[-1] < max_len:
             logits = model(waveform, tokens)
             next_token = torch.argmax(logits[0, -1])
-            
+
             if next_token == tokenizer.eot:  # Break if we hit end of transcript
                 break
                 

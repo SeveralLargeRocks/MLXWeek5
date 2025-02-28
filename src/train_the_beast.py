@@ -56,8 +56,9 @@ def train_model(
             loss.backward()
             optimizer.step()
 
-            total_loss += loss.item()
-            print(f"Step {i + 1}/{len(dataloader)}, Loss: {loss.item():.4f}")
+            loss_item = loss.item()
+            total_loss += loss_item
+            print(f"Step {i + 1}/{len(dataloader)}, Loss: {loss_item:.4f}")
 
             # # break after 3 batches for easy testing
             # if i > 3:
@@ -67,6 +68,7 @@ def train_model(
 
             wandb.log({
                 "avg_train_loss": avg_loss,
+                "loss_item": loss_item,
             })
 
         wandb.log({
@@ -92,8 +94,6 @@ def train_model(
 
 if __name__ == "__main__":
     device = "cuda" if torch.cuda.is_available() else "cpu"
-
-    torch.set_default_tensor_type(f"torch.{device}.FloatTensor")
 
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
