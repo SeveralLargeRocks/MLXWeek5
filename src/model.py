@@ -53,7 +53,7 @@ class TwoTowerModel(nn.Module):
         
         waveform = whisper.load_audio(audio_file)
         tokenizer = whisper.tokenizer.get_tokenizer(self.is_multilingual)
-        waveform = self.encode(waveform)
+        encoder_output = self.encode(waveform)
         
         # Start with just the necessary tokens
         prompt = [tokenizer.sot]  # Start of transcript token
@@ -67,7 +67,7 @@ class TwoTowerModel(nn.Module):
             # Generate tokens until we hit max length or end token
             max_len = 448  # Whisper's max length
             while tokens.shape[-1] < max_len:
-                logits = self(waveform, tokens)
+                logits = self(encoder_output, tokens)
                 next_token = torch.argmax(logits[0, -1])
 
                 if next_token == tokenizer.eot:  # Break if we hit end of transcript
