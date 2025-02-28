@@ -53,6 +53,7 @@ class TwoTowerModel(nn.Module):
         
         waveform = whisper.load_audio(audio_file)
         tokenizer = whisper.tokenizer.get_tokenizer(self.is_multilingual)
+        waveform = self.encode(waveform)
         
         # Start with just the necessary tokens
         prompt = [tokenizer.sot]  # Start of transcript token
@@ -80,6 +81,8 @@ class TwoTowerModel(nn.Module):
         print("\nFinal transcript:", text)
 
 
+    def encode(self, waveform):
+        return waveform
 
     def forward(self, waveform, token_ids):
         waveform_padded = whisper.pad_or_trim(waveform)
