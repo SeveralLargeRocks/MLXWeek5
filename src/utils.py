@@ -23,7 +23,7 @@ def audio_path_to_mel(audio_path: str, device: str = "cpu") -> torch.Tensor:
 def text_to_input_tks(
     text: str, tokenizer: whisper.tokenizer.Tokenizer, device: str = "cpu"
 ) -> torch.Tensor:
-    target_ids = tokenizer.encode(text)
+    target_ids = tokenizer.encode(text, allowed_special={'<|startoflm|>'})
     sot_token = torch.tensor(
         [tokenizer.sot], dtype=torch.long, device=device
     ).unsqueeze(0)

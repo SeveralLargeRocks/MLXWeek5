@@ -40,7 +40,7 @@ def train_model(
     model.train()
 
     encoder_output = None
-    for epoch in range(100):
+    for epoch in range(50):
         total_loss = 0
 
         for i, (file, transcript) in enumerate(dataloader):
@@ -49,6 +49,8 @@ def train_model(
 
             waveform = whisper.load_audio(os.path.join(dirname, '../split', file))
             tokens = text_to_input_tks(transcript, tokenizer, device)
+
+            tokens = torch.cat((tokens, torch.tensor([[tokenizer.eot]]).to(device)), dim=1)
 
             if encoder_output is None:
                 encoder_output = model.encode(waveform)
@@ -81,10 +83,10 @@ def train_model(
             "epoch": epoch + 1
         })
 
-        model_path = os.path.join(dirname, f"model_epoch_{epoch}.pth")
-        torch.save(model.state_dict(), model_path)
 
         if (epoch + 1) % 25 == 0:
+            model_path = os.path.join(dirname, f"model_epoch_{epoch}.pth")
+            torch.save(model.state_dict(), model_path)
             artifact = wandb.Artifact("the_beast", type="model")
             artifact.add_file(model_path)
             wandb.log_artifact(artifact)
