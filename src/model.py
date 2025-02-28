@@ -83,17 +83,17 @@ class TwoTowerModel(nn.Module):
 
     def encode(self, waveform):
         waveform_padded = whisper.pad_or_trim(waveform)
-        return waveform_padded, waveform
-
-    def forward(self, encoder_output, token_ids):
-        waveform_padded, waveform = encoder_output
-
-        device = self.device
-
         mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
-            
+
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
+
+        return encoder_output, waveform, mel
+
+    def forward(self, full_encoder_output, token_ids):
+        encoder_output, waveform, mel = full_encoder_output
+
+        device = self.device
 
         audio_token_length = 20 # 20ms
 
