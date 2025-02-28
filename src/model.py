@@ -172,11 +172,11 @@ if __name__ == "__main__":
 
     model = TwoTowerModel(hf_token=hf_token).to(device)
 
-    model_weights = torch.load(os.path.join(dirname, "../weights/model_epoch_4.pth"), map_location=device)
+    model_weights = torch.load(os.path.join(dirname, "../weights/model_epoch_99.pth"), map_location=device)
     
     model.load_state_dict(model_weights)
 
     # Decode the full sequence
-    # text = model.diarize_transcribe("split/modern_wisdom_alain_de_botton_segment_1.wav")
-    text = model.diarize_transcribe("extract.wav")
+    text = model.diarize_transcribe("split/modern_wisdom_alain_de_botton_segment_1.wav")
+    # text = model.diarize_transcribe("extract.wav")
     print("\nFinal transcript:", text)

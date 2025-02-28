@@ -2,6 +2,7 @@ import re
 import os
 import pandas
 import os
+import whisper
 
 dirname = os.path.dirname(__file__)
 
@@ -23,16 +24,18 @@ def parse_diarized_file(filename):
     return diarized_segments
 
 def generate_output_string(diarized_segments):
-    """Generate the output string with <startoflm> for speaker changes and <split> every 30 seconds based on absolute timestamps."""
+    """Generate the output string with <|startoflm|> for speaker changes and <split> every 30 seconds based on absolute timestamps."""
     output_text = ""
     previous_speaker = None
     next_split_time = 30.0  # The next absolute timestamp where <split> should be inserted
+
+    tokenizer = whisper.tokenizer.get_tokenizer(True)
     
     for start_time, end_time, speaker, text in diarized_segments:
-        # Insert <startoflm> if the speaker changes
+        # Insert <|startoflm|> if the speaker changes
         if speaker != previous_speaker:
-            if previous_speaker is not None:  # Skip <startoflm> for the first speaker
-                output_text += " <startoflm>"
+            if previous_speaker is not None:  # Skip <|startoflm|> for the first speaker
+                output_text += tokenizer.sot_lm
         
         words = text.split()
         segment_duration = end_time - start_time
