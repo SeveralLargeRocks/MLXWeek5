@@ -85,7 +85,6 @@ def train_model(
     
         print(f"Epoch {epoch} complete. Average loss: {total_loss / i}")
         # break after 1 epoch for easy testing
-        break
 
     # test on hello.wav
     model.eval()
