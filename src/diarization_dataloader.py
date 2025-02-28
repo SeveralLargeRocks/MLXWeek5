@@ -7,7 +7,7 @@ dirname = os.path.dirname(__file__)
 
 class DiarizationDataset(Dataset):
     def __init__(self):
-        self.dataset = pandas.read_csv(os.path.join(dirname, '../output.csv'), header=None, names=['file', 'transcript'])
+        self.dataset = pandas.read_csv(os.path.join(dirname, '../output_train.csv'), header=None, names=['file', 'transcript'])
 
     def __len__(self):
         return len(self.dataset)
