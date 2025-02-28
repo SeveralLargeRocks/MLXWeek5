@@ -7,3 +7,4 @@ modern_wisdom_alain_de_botton.wav
 *.wav
 !extract.wav
 output.csv
+.DS_Store

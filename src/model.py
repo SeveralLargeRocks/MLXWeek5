@@ -1,8 +1,7 @@
 import torch
 import torch.nn as nn
 import whisper
-from pyannote.audio import Model, Pipeline
-from src.utils import audio_path_to_mel, text_to_input_tks
+from pyannote.audio import Pipeline
 from dotenv import load_dotenv
 import os
 import gc
@@ -46,7 +45,7 @@ class TwoTowerModel(nn.Module):
     def forward(self, waveform, token_ids):
         waveform_padded = whisper.pad_or_trim(waveform)
 
-        device = next(model.parameters()).device
+        device = next(self.parameters()).device
         mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
             
         # Get whisper encoder features
@@ -70,19 +69,29 @@ class TwoTowerModel(nn.Module):
 
         prev_segment_end = 0
         for segment, _, speaker in diarization.itertracks(yield_label=True):
-            time_since_last_segment_end = segment.start - prev_segment_end
+            start_time = segment.start
+            if start_time < prev_segment_end:
+                # if someone interrupts, preserve the initial speaker until they stop speaking
+                start_time = prev_segment_end
 
-            # fill the rows between each detected speech segment (silence) with zeros
-            empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
-            actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim)
+            if segment.end < prev_segment_end:
+                # if entire segment is speaking over previous speaker, ignore them completely
+                continue
 
-            who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
+            time_since_last_segment_end = start_time - prev_segment_end
+
+            if time_since_last_segment_end > 0:
+                # fill the rows between each detected speech segment (silence) with zeros
+                empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
+                actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim)
+
+                who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
 
             # then fill the rows for the speech segment with the embedding for that speaker (repeated)
             index = index_lookup[speaker]
             segment_speaker_embedding = torch.tensor(embeddings[index])
 
-            segment_duration_ms = (segment.end - segment.start) * 1000
+            segment_duration_ms = (segment.end - start_time) * 1000
             num_tracks_in_segment = segment_duration_ms / audio_token_length
             repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
 
