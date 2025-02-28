@@ -39,8 +39,10 @@ def train_model(
     # Train the model
     model.train()
 
-    for epoch in range(5):
+    encoder_output = None
+    for epoch in range(100):
         total_loss = 0
+
         for i, (file, transcript) in enumerate(dataloader):
             file = file[0]
             transcript = transcript[0]
@@ -48,7 +50,8 @@ def train_model(
             waveform = whisper.load_audio(os.path.join(dirname, '../split', file))
             tokens = text_to_input_tks(transcript, tokenizer, device)
 
-            encoder_output = model.encode(waveform)
+            if encoder_output is None:
+                encoder_output = model.encode(waveform)
 
             # forward pass
             predictions = model(encoder_output, tokens)
@@ -81,9 +84,10 @@ def train_model(
         model_path = os.path.join(dirname, f"model_epoch_{epoch}.pth")
         torch.save(model.state_dict(), model_path)
 
-        artifact = wandb.Artifact("the_beast", type="model")
-        artifact.add_file(model_path)
-        wandb.log_artifact(artifact)
+        if (epoch + 1) % 25 == 0:
+            artifact = wandb.Artifact("the_beast", type="model")
+            artifact.add_file(model_path)
+            wandb.log_artifact(artifact)
     
         print(f"Epoch {epoch} complete. Average loss: {total_loss / len(dataloader)}")
         # break after 1 epoch for easy testing
@@ -102,7 +106,7 @@ if __name__ == "__main__":
 
     tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     criterion = torch.nn.CrossEntropyLoss()
 
