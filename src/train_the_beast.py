@@ -39,7 +39,8 @@ def train_model(
     # Train the model
     model.train()
 
-    encoder_output = None
+    cache = {}
+
     for epoch in range(50):
         total_loss = 0
 
@@ -52,8 +53,10 @@ def train_model(
 
             tokens = torch.cat((tokens, torch.tensor([[tokenizer.eot]]).to(device)), dim=1)
 
+            encoder_output = cache[file] if file in cache else None
             if encoder_output is None:
                 encoder_output = model.encode(waveform)
+                cache[file] = encoder_output
 
             # forward pass
             predictions = model(encoder_output, tokens)
@@ -83,11 +86,11 @@ def train_model(
             "epoch": epoch + 1
         })
 
+        model_path = os.path.join(dirname, f"new_model_epoch_{epoch}.pth")
+        torch.save(model.state_dict(), model_path)
 
-        if (epoch + 1) % 25 == 0:
-            model_path = os.path.join(dirname, f"model_epoch_{epoch}.pth")
-            torch.save(model.state_dict(), model_path)
-            artifact = wandb.Artifact("the_beast", type="model")
+        if (epoch + 1) % 10 == 0:
+            artifact = wandb.Artifact(f"the_beast_{epoch}", type="model")
             artifact.add_file(model_path)
             wandb.log_artifact(artifact)
     
