@@ -13,6 +13,9 @@ from src.model import TwoTowerModel
 from dotenv import load_dotenv
 import os
 import whisper
+import wandb
+
+wandb.init(project='the-beast')
 
 dirname = os.path.dirname(__file__)
 
@@ -56,10 +59,28 @@ def train_model(
             total_loss += loss.item()
             print(f"Step {i + 1}/{len(dataloader)}, Loss: {loss.item():.4f}")
 
-            # break after 3 batches for easy testing
-            if i > 3:
-                break
-        
+            # # break after 3 batches for easy testing
+            # if i > 3:
+            #     break
+
+            avg_loss = total_loss / i
+
+            wandb.log({
+                "avg_train_loss": avg_loss,
+            })
+
+        wandb.log({
+            "epoch_loss": total_loss / i,
+            "epoch": epoch + 1
+        })
+
+        model_path = os.path.join(dirname, f"model_epoch_{epoch}.pth")
+        torch.save(model.state_dict(), model_path)
+
+        artifact = wandb.Artifact("the_beast", type="model")
+        artifact.add_file(model_path)
+        wandb.log_artifact(artifact)
+    
         print(f"Epoch {epoch} complete. Average loss: {total_loss / i}")
         # break after 1 epoch for easy testing
         break

@@ -1,7 +1,9 @@
 import re
 import os
 import pandas
+import os
 
+dirname = os.path.dirname(__file__)
 
 def parse_diarized_file(filename):
     """Parse the diarized file into a list of (start_time, end_time, speaker, text) tuples."""
@@ -84,13 +86,13 @@ def associate_audio_with_text(audio_folder, text_dict):
     return audio_mapping
 
 if __name__ == "__main__":
-    diarized_file = "/Users/cameron/Documents/mlx-projects/MLXWeek5/modern_wisdom_combined.txt"  # Replace with your actual file path
+    diarized_file = os.path.join(dirname, "modern_wisdom_combined.txt")  # Replace with your actual file path
     output_string = process_diarized_file(diarized_file)
     print(output_string)
     
     splitted=split_text_by_token(output_string)
         
-    audio_folder = "/Users/cameron/Documents/mlx-projects/MLXWeek5/split"
+    audio_folder = os.path.join(dirname, "split")
 
     result = associate_audio_with_text(audio_folder, splitted)
 

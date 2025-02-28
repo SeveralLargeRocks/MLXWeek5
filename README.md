@@ -8,6 +8,18 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv sync
 ```
 
+(you may need to add uv to the path after installing - see output of install script)
+
+Install ffmpeg:
+`apt install ffmpeg`
+
+Create `.env` file and add your hugging face and wandb tokens:
+```
+WANDB_API_KEY=
+HF_TOKEN=
+```
+
+
 That's it!
 
 You can also install nvtop if you want to monitor your system resource usage:
