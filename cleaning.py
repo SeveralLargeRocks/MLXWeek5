@@ -86,7 +86,7 @@ def associate_audio_with_text(audio_folder, text_dict):
     return audio_mapping
 
 if __name__ == "__main__":
-    diarized_file = os.path.join(dirname, "modern_wisdom_combined.txt")  # Replace with your actual file path
+    diarized_file = os.path.join(dirname, "modern_wisdom_dr_julie_smith_combined.txt")  # Replace with your actual file path
     output_string = process_diarized_file(diarized_file)
     print(output_string)
     

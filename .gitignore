@@ -4,6 +4,7 @@ wandb
 *.pth
 .env
 modern_wisdom_alain_de_botton.wav
+modern_wisdom_dr_julie_smith.wav
 *.wav
 !extract.wav
 output.csv
