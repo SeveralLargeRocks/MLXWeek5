@@ -82,10 +82,11 @@ class TwoTowerModel(nn.Module):
 
 
     def encode(self, waveform):
-        return waveform
-
-    def forward(self, waveform, token_ids):
         waveform_padded = whisper.pad_or_trim(waveform)
+        return waveform_padded, waveform
+
+    def forward(self, encoder_output, token_ids):
+        waveform_padded, waveform = encoder_output
 
         device = self.device
 
