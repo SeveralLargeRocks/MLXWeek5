@@ -13,11 +13,13 @@ class TwoTowerModel(nn.Module):
         super(TwoTowerModel, self).__init__()
         whisper_model = whisper.load_model("small.en")
 
+        self.max_len = 448  # Whisper's max length
+
         self.is_multilingual = whisper_model.is_multilingual
-        self.encoder = whisper_model.encoder  # Use only the encoder
+        self.whisper_encoder = whisper_model.encoder  # Use only the encoder
 
         # Freeze encoder parameters
-        for param in self.encoder.parameters():
+        for param in self.whisper_encoder.parameters():
             param.requires_grad = False
 
         # Use pipeline for now (TODO: can we do this faster using the separate models?)
@@ -43,28 +45,41 @@ class TwoTowerModel(nn.Module):
         self.tokenizer = whisper.tokenizer.get_tokenizer(self.is_multilingual)
 
         self.decoder = whisper_model.decoder
-
-    def forward(self, waveform, token_ids):
+        
+    def encode(self, waveform):
         waveform_padded = whisper.pad_or_trim(waveform)
         print('waveform_padded.shape: ', waveform_padded.shape)
 
         device = next(self.parameters()).device
-        mel = whisper.log_mel_spectrogram(waveform_padded).to(device)
-
-        print('mel shape', mel.shape)
-            
-        # Get whisper encoder features
-        encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
-    
-        print(encoder_output)
-
-        audio_token_length = 20 # 20ms
-
-        waveform_tensor = torch.tensor(waveform, device=device)
-        print('waveform_tenso.shaper: ', waveform_tensor.shape)
 
         # Get diarization & speaker embeddings
-        diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
+        # waveform_tensor = torch.tensor(waveform, device=device)
+        print(f'waveform_tensor {type(waveform_tensor)}: {waveform_tensor.shape}')
+
+        pipeline_output = [self.speaker_pipeline({ 'waveform': waveform, 'sample_rate': 16000 }, return_embeddings=True) for waveform in waveform_padded]
+        
+        diarizations, embeddings = zip(*pipeline_output)
+        # diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
+        print(f'embeddings {type(embeddings)}: {embeddings.shape}')
+
+        
+        
+        
+        # print('embeddings.shape', embeddings.shape)
+        # print('mel shape', mel.shape)
+            
+        # Get whisper encoder features
+        mel = whisper.log_mel_spectrogram(waveform_padded).to(device)
+        whisper_encoded = self.whisper_encoder(mel)
+
+        return whisper_encoded, diarizations, embeddings
+
+    def forward(self, encoder_output, token_ids):
+        whisper_encoded, diarizations, embeddings = encoder_output
+
+        device = next(self.parameters()).device
+
+        audio_token_length = 20 # 20ms
 
         # matrix to be concatted with the whisper encoder output
         who_matrix = torch.tensor([], device=device)
@@ -78,50 +93,57 @@ class TwoTowerModel(nn.Module):
             'SPEAKER_04': 4
         }
 
-        prev_segment_end = 0
-        for segment, _, speaker in diarization.itertracks(yield_label=True):
-            start_time = segment.start
-            if start_time < prev_segment_end:
-                # if someone interrupts, preserve the initial speaker until they stop speaking
-                start_time = prev_segment_end
+        for diarization in diarizations:
+            prev_segment_end = 0
+            for segment, _, speaker in diarization.itertracks(yield_label=True):
+                start_time = segment.start
+                if start_time < prev_segment_end:
+                    # if someone interrupts, preserve the initial speaker until they stop speaking
+                    start_time = prev_segment_end
 
-            if segment.end < prev_segment_end:
-                # if entire segment is speaking over previous speaker, ignore them completely
-                continue
+                if segment.end < prev_segment_end:
+                    # if entire segment is speaking over previous speaker, ignore them completely
+                    continue
 
-            time_since_last_segment_end = start_time - prev_segment_end
+                time_since_last_segment_end = start_time - prev_segment_end
 
-            if time_since_last_segment_end > 0:
-                # fill the rows between each detected speech segment (silence) with zeros
-                empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
-                actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim).to(device)
+                if time_since_last_segment_end > 0:
+                    # fill the rows between each detected speech segment (silence) with zeros
+                    empty_rows = (time_since_last_segment_end * 1000) / audio_token_length
+                    actual_empty_rows = torch.zeros(int(empty_rows), self.speaker_dim).to(device)
 
-                who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
+                    who_matrix = torch.cat((who_matrix, actual_empty_rows), 0)
 
-            # then fill the rows for the speech segment with the embedding for that speaker (repeated)
-            index = index_lookup[speaker]
-            segment_speaker_embedding = torch.tensor(embeddings[index], device=device)
+                # then fill the rows for the speech segment with the embedding for that speaker (repeated)
+                index = index_lookup[speaker]
+                segment_speaker_embedding = torch.tensor(embeddings[index], device=device)
 
-            segment_duration_ms = (segment.end - start_time) * 1000
-            num_tracks_in_segment = segment_duration_ms / audio_token_length
-            repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
+                segment_duration_ms = (segment.end - start_time) * 1000
+                num_tracks_in_segment = segment_duration_ms / audio_token_length
+                repeated = segment_speaker_embedding.repeat(int(num_tracks_in_segment), 1)
 
-            who_matrix = torch.cat((who_matrix, repeated), 0)
+                who_matrix = torch.cat((who_matrix, repeated), 0)
 
-            prev_segment_end = segment.end
+                prev_segment_end = segment.end
 
-        # fill the remaining rows with zeros (corresponds to whisper's own padding to 30 seconds)
-        remaing_empty_rows_to_append = 1500 - who_matrix.shape[0]
-        final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim).to(device)
-        who_matrix = torch.cat((who_matrix, final_empty_rows), 0)
+            # fill the remaining rows with zeros (corresponds to whisper's own padding to 30 seconds)
+            remaing_empty_rows_to_append = 1500 - who_matrix.shape[0]
+            final_empty_rows = torch.zeros(int(remaing_empty_rows_to_append), self.speaker_dim).to(device)
+            who_matrix = torch.cat((who_matrix, final_empty_rows), 0)
 
-        # TODO: who_matrix should be batched
-        who_matrix = who_matrix.unsqueeze(0)
+            # TODO: who_matrix should be batched
+            who_matrix = who_matrix.unsqueeze(0)
+        
+        print('whisper_encoded shape', whisper_encoded.shape)
+        print('who_matrix shape', who_matrix.shape)
 
-        who_what_matrix = torch.cat((encoder_output, who_matrix), -1)
+        who_what_matrix = torch.cat((whisper_encoded, who_matrix), -1)
 
         # Project back to encoder dimension
         combined_audio = self.combine(who_what_matrix)
+        
+        print('combined shape', combined_audio.shape)
+        print('token_ids shape', token_ids.shape)
 
         logits = self.decoder(token_ids, combined_audio)  # Shape: [batch, seq_len, vocab_size]
 
@@ -149,11 +171,11 @@ if __name__ == "__main__":
     tokens = torch.tensor([prompt]).to(device)
     
     with torch.no_grad():
+        encoder_output = model.encode(waveform_batch)
         # Generate tokens until we hit max length or end token
-        max_len = 448  # Whisper's max length
-        while tokens.shape[-1] < max_len:
+        while tokens.shape[-1] < model.max_len:
             print('tokens shape', tokens.shape)
-            logits = model(waveform_batch, tokens)
+            logits = model(encoder_output, tokens)
             next_token = torch.argmax(logits[0, -1])
 
             if next_token == tokenizer.eot:  # Break if we hit end of transcript

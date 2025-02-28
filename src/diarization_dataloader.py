@@ -17,9 +17,6 @@ class DiarizationDataset(Dataset):
         return row['file'], row['transcript']
 
 
-def collate_fn(batch):
-    return batch
-
 if __name__ == "__main__":
     batch_size = 2
 

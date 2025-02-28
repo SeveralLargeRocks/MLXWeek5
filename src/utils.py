@@ -44,6 +44,14 @@ def text_to_input_tks(
 
     return input_tks
 
+def text_batch_to_input_tks(
+    text: str, tokenizer: whisper.tokenizer.Tokenizer, device: str = "cpu"
+) -> torch.Tensor:
+    target_ids = tokenizer.encoding.encode_batch(text)
+    input_tks = [[tokenizer.sot] + target_ids for target_ids in target_ids]
+
+    return input_tks
+
 
 def get_loss(
     predictions: torch.Tensor,

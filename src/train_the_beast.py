@@ -3,7 +3,7 @@
 import torch
 
 from src.utils import (
-    text_to_input_tks,
+    text_batch_to_input_tks,
     get_loss,
     get_training_kit,
     set_seed,
@@ -15,11 +15,34 @@ from dotenv import load_dotenv
 import os
 import whisper
 import wandb
+import numpy as np
+import time
 
 dirname = os.path.dirname(__file__)
 
+def collate_fn(batch, max_len):
+    print('-------------------- in collate fn ------------------')
+    files, transcripts = zip(*batch)
+    tokenized_texts = text_batch_to_input_tks(transcripts, model.tokenizer, device)
+
+    # trim first
+    tokenized_texts = [tokens[:max_len] for tokens in tokenized_texts]
+
+    # then pad
+    eot_token = model.tokenizer.eot  # End-of-transcript token
+    padded_tokens = torch.stack([
+        torch.cat([
+            torch.tensor(tokens, dtype=torch.long),
+            torch.tensor(eot_token, dtype=torch.long).repeat(max_len - len(tokens))
+        ], dim=0)
+        for tokens in tokenized_texts
+    ])
+    print('padded tokens shape', padded_tokens.shape)
+
+    return files, padded_tokens
+
 def train_model(
-    model,
+    model: TwoTowerModel,
     tokenizer,
     optimizer,
     criterion,
@@ -29,25 +52,32 @@ def train_model(
 
     model.to(device)
 
-    batch_size = 1
+    batch_size = 5
     dataset = DiarizationDataset()
-    dataloader = DataLoader(dataset, batch_size)
+    dataloader = DataLoader(dataset, batch_size, collate_fn=lambda batch: collate_fn(batch, model.max_len))
 
     # Train the model
     model.train()
 
     for epoch in range(5):
         total_loss = 0
-        for i, (file, transcript) in enumerate(dataloader):
-            file = file[0]
-            transcript = transcript[0]
+        for i, (files, token_ids_batch) in enumerate(dataloader):
 
-            waveform = whisper.load_audio(os.path.join(dirname, '../split', file))
-            tokens = text_to_input_tks(transcript, tokenizer, device)
+            print(f"converting {len(files)} to waveform")
+            start_time = time.time()
+            waveforms = np.array([whisper.load_audio(os.path.join(dirname, '../split', file)) for file in files])
+            print('waveforms.shape: ', waveforms.shape)
+            print(f"took {time.time() - start_time}")
+
+            # tokens = text_batch_to_input_tks(transcripts, tokenizer, device)
+            print('token_ids_batch.shape: ', token_ids_batch.shape)
+            encoder_output = model.encode(waveforms)
+            # print('encoder_outputs.shape: ', [x.shape for x in encoder_output])
 
             # forward pass
-            predictions = model(waveform, tokens)
-            loss = get_loss(predictions, tokens, criterion)
+            predictions = model(encoder_output, token_ids_batch)
+            print('predictions.shape: ', predictions.shape)
+            loss = get_loss(predictions, token_ids_batch, criterion)
 
             optimizer.zero_grad()
             loss.backward()
@@ -58,7 +88,7 @@ def train_model(
             print(f"Step {i + 1}/{len(dataloader)}, Loss: {loss_item:.4f}")
 
             # # break after 3 batches for easy testing
-            # if i > 3:
+            # if i > 2:
             #     break
 
             avg_loss = total_loss / (i + 1)
@@ -69,7 +99,7 @@ def train_model(
             })
 
         wandb.log({
-            "epoch_loss": total_loss / (i + 1),
+            "epoch_loss": total_loss / len(dataloader),
             "epoch": epoch + 1
         })
 
@@ -82,6 +112,7 @@ def train_model(
     
         print(f"Epoch {epoch} complete. Average loss: {total_loss / i}")
         # break after 1 epoch for easy testing
+        break
 
     # test on hello.wav
     model.eval()
