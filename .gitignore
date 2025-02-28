@@ -8,3 +8,4 @@ modern_wisdom_dr_julie_smith.wav
 *.wav
 !extract.wav
 .DS_Store
+src/cache.joblib

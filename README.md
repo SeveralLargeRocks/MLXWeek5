@@ -61,3 +61,7 @@ uv add torch
 # view installed packages
 uv pip list
 ```
+
+## Git notes
+
+Before merging overfit-super, last commit was `86df1dde178a1932efd3ae4a84f0cb47ca878edc`

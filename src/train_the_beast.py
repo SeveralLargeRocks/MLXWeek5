@@ -14,10 +14,13 @@ from dotenv import load_dotenv
 import os
 import whisper
 import wandb
+import joblib
 
 wandb.init(project='the-beast')
 
 dirname = os.path.dirname(__file__)
+
+CACHE_FILE = os.path.join(dirname, 'cache.joblib')
 
 torch.manual_seed(16)
 
@@ -39,7 +42,11 @@ def train_model(
     # Train the model
     model.train()
 
-    cache = {}
+    if os.path.exists(CACHE_FILE):
+        cache = joblib.load(CACHE_FILE)
+        print('cache hit')
+    else:
+        cache = {}
 
     for epoch in range(50):
         total_loss = 0
@@ -55,6 +62,7 @@ def train_model(
 
             encoder_output = cache[file] if file in cache else None
             if encoder_output is None:
+                print('cache miss')
                 encoder_output = model.encode(waveform)
                 cache[file] = encoder_output
 
@@ -80,6 +88,7 @@ def train_model(
                 "avg_train_loss": avg_loss,
                 "loss_item": loss_item,
             })
+
 
         wandb.log({
             "epoch_loss": total_loss / len(dataloader),
