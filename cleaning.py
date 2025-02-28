@@ -69,12 +69,12 @@ def process_diarized_file(filename):
     output_string = generate_output_string(diarized_segments)
     return output_string
     
-def associate_audio_with_text(audio_folder, text_dict):
+def associate_audio_with_text(audio_folder, audio_file, text_dict):
     """Associates each audio file in the folder with its corresponding text ID."""
     audio_mapping = {}
 
-    # Regex to extract segment number from filenames
-    pattern = re.compile(r"segment_(\d+)\.wav")
+    # Regex to extract segment number from filenames (matching specific audio_file prefix)
+    pattern = re.compile(re.escape(audio_file) + r'_segment_(\d+)\.wav')
 
     for filename in os.listdir(audio_folder):
         match = pattern.search(filename)
@@ -86,21 +86,34 @@ def associate_audio_with_text(audio_folder, text_dict):
     return audio_mapping
 
 if __name__ == "__main__":
-    diarized_file = os.path.join(dirname, "modern_wisdom_dr_julie_smith_combined.txt")  # Replace with your actual file path
+    #generate train output
+    diarized_file = os.path.join(dirname, "modern_wisdom_alain_de_botton_combined.txt")  # Replace with your actual file path
     output_string = process_diarized_file(diarized_file)
-    print(output_string)
     
     splitted=split_text_by_token(output_string)
         
     audio_folder = os.path.join(dirname, "split")
 
-    result = associate_audio_with_text(audio_folder, splitted)
+    result = associate_audio_with_text(audio_folder, "modern_wisdom_alain_de_botton", splitted)
 
     df = pandas.DataFrame.from_dict(result, orient='index')
-    df.to_csv('output.csv', header=False)
+    df.to_csv('output_train.csv', header=False)
+    print("output_train.csv generated")
+
+    #generate validation output
+    diarized_file = os.path.join(dirname, "modern_wisdom_dr_julie_smith_combined.txt")  # Replace with your actual file path
+    output_string = process_diarized_file(diarized_file)
     
-    for key, value in result.items():
-        print(f"ID {key}: {value}")
+    splitted=split_text_by_token(output_string)
+        
+    audio_folder = os.path.join(dirname, "split")
+
+    result = associate_audio_with_text(audio_folder, "modern_wisdom_dr_julie_smith", splitted)
+
+    df = pandas.DataFrame.from_dict(result, orient='index')
+    df.to_csv('output_validation.csv', header=False)
+    print("output_validation.csv generated")
+
 
 
 
