@@ -48,8 +48,10 @@ def train_model(
             waveform = whisper.load_audio(os.path.join(dirname, '../split', file))
             tokens = text_to_input_tks(transcript, tokenizer, device)
 
+            encoder_output = model.encode(waveform)
+
             # forward pass
-            predictions = model(waveform, tokens)
+            predictions = model(encoder_output, tokens)
             loss = get_loss(predictions, tokens, criterion)
 
             optimizer.zero_grad()
@@ -72,7 +74,7 @@ def train_model(
             })
 
         wandb.log({
-            "epoch_loss": total_loss / (i + 1),
+            "epoch_loss": total_loss / len(dataloader),
             "epoch": epoch + 1
         })
 
@@ -83,7 +85,7 @@ def train_model(
         artifact.add_file(model_path)
         wandb.log_artifact(artifact)
     
-        print(f"Epoch {epoch} complete. Average loss: {total_loss / i}")
+        print(f"Epoch {epoch} complete. Average loss: {total_loss / len(dataloader)}")
         # break after 1 epoch for easy testing
 
     # test on hello.wav

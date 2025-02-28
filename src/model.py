@@ -82,6 +82,7 @@ class TwoTowerModel(nn.Module):
 
 
     def encode(self, waveform):
+        device = self.device
         waveform_padded = whisper.pad_or_trim(waveform)
         mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
 
@@ -176,5 +177,6 @@ if __name__ == "__main__":
     model.load_state_dict(model_weights)
 
     # Decode the full sequence
+    # text = model.diarize_transcribe("split/modern_wisdom_alain_de_botton_segment_1.wav")
     text = model.diarize_transcribe("extract.wav")
     print("\nFinal transcript:", text)
