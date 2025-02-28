@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 import os
 import gc
 
+dirname = os.path.dirname(__file__)
 
 class TwoTowerModel(nn.Module):
     def __init__(self, hf_token: str):
@@ -43,22 +44,63 @@ class TwoTowerModel(nn.Module):
 
         self.decoder = whisper_model.decoder
 
-    def forward(self, waveform, token_ids):
-        waveform_padded = whisper.pad_or_trim(waveform)
+        self.device = next(self.parameters()).device
 
-        device = next(self.parameters()).device
+    def diarize_transcribe(self, audio_file):
+        device = self.device
+
+        self.eval()  # Set to evaluation mode
+        
+        waveform = whisper.load_audio(audio_file)
+        tokenizer = whisper.tokenizer.get_tokenizer(self.is_multilingual)
+        encoder_output = self.encode(waveform)
+        
+        # Start with just the necessary tokens
+        prompt = [tokenizer.sot]  # Start of transcript token
+        if self.is_multilingual:
+            prompt.append(tokenizer.language_token("en"))
+        prompt.append(tokenizer.no_timestamps)  # Add no timestamps token
+        
+        tokens = torch.tensor([prompt]).to(device)
+        
+        with torch.no_grad():
+            # Generate tokens until we hit max length or end token
+            max_len = 448  # Whisper's max length
+            while tokens.shape[-1] < max_len:
+                logits = self(encoder_output, tokens)
+                next_token = torch.argmax(logits[0, -1])
+
+                if next_token == tokenizer.eot:  # Break if we hit end of transcript
+                    break
+                    
+                tokens = torch.cat([tokens, next_token.unsqueeze(0).unsqueeze(0)], dim=-1)
+                print("Generated token:", tokenizer.decode([next_token.item()]))
+        
+        # Decode the full sequence
+        text = tokenizer.decode(tokens[0].tolist())
+        print("\nFinal transcript:", text)
+
+
+    def encode(self, waveform):
+        waveform_padded = whisper.pad_or_trim(waveform)
         mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
-            
+
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
-
-        audio_token_length = 20 # 20ms
 
         waveform_tensor = torch.tensor(waveform, device=device).unsqueeze(0)
 
         # Get diarization & speaker embeddings
         diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
 
+        return encoder_output, diarization, embeddings
+
+    def forward(self, full_encoder_output, token_ids):
+        encoder_output, diarization, embeddings = full_encoder_output
+
+        device = self.device
+
+        audio_token_length = 20 # 20ms
         # matrix to be concatted with the whisper encoder output
         who_matrix = torch.tensor([], device=device)
         
@@ -126,33 +168,13 @@ if __name__ == "__main__":
 
     load_dotenv()
     hf_token = os.getenv("HF_TOKEN")
-    model = TwoTowerModel(hf_token=hf_token).to(device)
-    model.eval()  # Set to evaluation mode
-    
-    waveform = whisper.load_audio("extract.wav")
-    tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
-    
-    # Start with just the necessary tokens
-    prompt = [tokenizer.sot]  # Start of transcript token
-    if model.is_multilingual:
-        prompt.append(tokenizer.language_token("en"))
-    prompt.append(tokenizer.no_timestamps)  # Add no timestamps token
-    
-    tokens = torch.tensor([prompt]).to(device)
-    
-    with torch.no_grad():
-        # Generate tokens until we hit max length or end token
-        max_len = 448  # Whisper's max length
-        while tokens.shape[-1] < max_len:
-            logits = model(waveform, tokens)
-            next_token = torch.argmax(logits[0, -1])
 
-            if next_token == tokenizer.eot:  # Break if we hit end of transcript
-                break
-                
-            tokens = torch.cat([tokens, next_token.unsqueeze(0).unsqueeze(0)], dim=-1)
-            print("Generated token:", tokenizer.decode([next_token.item()]))
+    model = TwoTowerModel(hf_token=hf_token).to(device)
+
+    model_weights = torch.load(os.path.join(dirname, "../weights/model_epoch_4.pth"), map_location=device)
     
+    model.load_state_dict(model_weights)
+
     # Decode the full sequence
-    text = tokenizer.decode(tokens[0].tolist())
+    text = model.diarize_transcribe("extract.wav")
     print("\nFinal transcript:", text)
