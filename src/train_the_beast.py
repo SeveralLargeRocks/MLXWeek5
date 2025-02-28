@@ -6,6 +6,7 @@ from src.utils import (
     text_to_input_tks,
     get_loss,
     get_training_kit,
+    set_seed,
 )
 from src.diarization_dataloader import DiarizationDataset
 from torch.utils.data import DataLoader
@@ -15,11 +16,7 @@ import os
 import whisper
 import wandb
 
-wandb.init(project='the-beast')
-
 dirname = os.path.dirname(__file__)
-
-torch.manual_seed(16)
 
 def train_model(
     model,
@@ -92,6 +89,10 @@ def train_model(
 
 
 if __name__ == "__main__":
+    set_seed(16)
+
+    wandb.init(project='the-beast')
+
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     load_dotenv()
@@ -100,7 +101,7 @@ if __name__ == "__main__":
 
     tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
 
-    optimizer = torch.optim.Adam(model.parameters(), lr=1e-5)
+    optimizer = torch.optim.Adam(model.parameters(), lr=1e-4)
 
     criterion = torch.nn.CrossEntropyLoss()
 

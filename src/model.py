@@ -4,6 +4,7 @@ import whisper
 from pyannote.audio import Pipeline
 from dotenv import load_dotenv
 import os
+import numpy as np
 import gc
 
 
@@ -45,16 +46,22 @@ class TwoTowerModel(nn.Module):
 
     def forward(self, waveform, token_ids):
         waveform_padded = whisper.pad_or_trim(waveform)
+        print('waveform_padded.shape: ', waveform_padded.shape)
 
         device = next(self.parameters()).device
-        mel = whisper.log_mel_spectrogram(waveform_padded).to(device).unsqueeze(0)
+        mel = whisper.log_mel_spectrogram(waveform_padded).to(device)
+
+        print('mel shape', mel.shape)
             
         # Get whisper encoder features
         encoder_output = self.encoder(mel)  # Shape: [batch, seq_len, encoder_dim]
+    
+        print(encoder_output)
 
         audio_token_length = 20 # 20ms
 
-        waveform_tensor = torch.tensor(waveform, device=device).unsqueeze(0)
+        waveform_tensor = torch.tensor(waveform, device=device)
+        print('waveform_tenso.shaper: ', waveform_tensor.shape)
 
         # Get diarization & speaker embeddings
         diarization, embeddings = self.speaker_pipeline({ 'waveform': waveform_tensor, 'sample_rate': 16000 }, return_embeddings=True)
@@ -130,6 +137,7 @@ if __name__ == "__main__":
     model.eval()  # Set to evaluation mode
     
     waveform = whisper.load_audio("extract.wav")
+    waveform_batch = np.expand_dims(waveform, axis=0)
     tokenizer = whisper.tokenizer.get_tokenizer(model.is_multilingual)
     
     # Start with just the necessary tokens
@@ -144,7 +152,8 @@ if __name__ == "__main__":
         # Generate tokens until we hit max length or end token
         max_len = 448  # Whisper's max length
         while tokens.shape[-1] < max_len:
-            logits = model(waveform, tokens)
+            print('tokens shape', tokens.shape)
+            logits = model(waveform_batch, tokens)
             next_token = torch.argmax(logits[0, -1])
 
             if next_token == tokenizer.eot:  # Break if we hit end of transcript
